@@ -34,7 +34,7 @@ from docopt import docopt
 
 __version__ = '0.8.0'
 
-CACHE_EXPIRY = 60
+CACHE_EXPIRY = 5
 HISTORY_DB = 'History'
 FAVICONS_DB = 'Favicons'
 FAVICONS_CACHE = 'Favicons-Cache'
@@ -56,6 +56,14 @@ SELECT urls.id, urls.title, urls.url {favicon_select}
     {favicon_join}
     WHERE (urls.title LIKE ? OR urls.url LIKE ?)
     ORDER BY visit_count DESC, typed_count DESC, last_visit_time DESC
+"""
+
+EMPTY_QUERY = u"""
+SELECT urls.id, urls.title, urls.url {favicon_select}
+    FROM urls
+    {favicon_join}
+    ORDER BY last_visit_time DESC
+    LIMIT 20
 """
 
 UNIX_EPOCH = datetime.datetime.utcfromtimestamp(0)
@@ -116,15 +124,22 @@ def history_results(db, query, favicons=True):
     else:
         favicon_select = ''
         favicon_join = ''
-    for row in db.execute(HISTORY_QUERY.format(favicon_select=favicon_select, favicon_join=favicon_join), (q, q,)):
+    if query.strip() == '':
+        results = db.execute(EMPTY_QUERY.format(favicon_select=favicon_select, favicon_join=favicon_join))
+    else:
+        results = db.execute(HISTORY_QUERY.format(favicon_select=favicon_select, favicon_join=favicon_join), (q, q,))
+
+    repeats = set()
+    for row in results:
         if favicons:
             (uid, title, url, image_data, image_last_updated) = row
             icon = cache_favicon(image_data, uid, convert_chrometime(image_last_updated)) if image_data and image_last_updated else None
         else:
             (uid, title, url) = row
             icon = None
-
-        yield alfred.Item({u'uid': alfred.uid(uid), u'arg': url, u'autocomplete': url}, title or url, url, icon)
+        if title not in repeats:
+            repeats.add(title)
+            yield alfred.Item({u'uid': alfred.uid(uid), u'arg': url, u'autocomplete': url}, title or url, url, icon)
 
 if __name__ == '__main__':
     arguments = docopt(__doc__, version='Alfred Chrome History {}'.format(__version__))
