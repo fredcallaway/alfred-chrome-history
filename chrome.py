@@ -109,7 +109,7 @@ def convert_chrometime(chrometime):
     return (chrometime * MICROSECS_PER_SEC) - SECONDS_BETWEEN_UNIX_AND_WINDOWS_EPOCH
 
 def history_results(db, query, favicons=True):
-    q = u'%{}%'.format(query)
+    q = u'%{}%'.format('%'.join(query.split(' ')))
     if favicons:
         favicon_select = FAVICON_SELECT
         favicon_join = FAVICON_JOIN
